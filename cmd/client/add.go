@@ -7,7 +7,7 @@ import (
 )
 
 func addItem(cmd *cobra.Command, args []string) error {
-	fmt.Println("adding item", inputFile) // TODO
+	fmt.Println("adding item", key) // TODO
 
 	return nil
 }

@@ -1,0 +1,32 @@
+version: '3.9'
+
+services:
+    localstack:
+        container_name: localstack
+        environment:
+            - DATA_DIR=/tmp/localstack/data
+            - DEBUG=1
+            - DEFAULT_REGION=eu-central-1
+            - SERVICES=sqs
+        healthcheck:
+            test: ["CMD-SHELL", "awslocal sqs list-queues"]
+            interval: 5s
+            timeout: 10s
+            start_period: 10s
+        image: localstack/localstack:latest
+        networks:
+            - localstack-net
+        ports:
+            - "4566:4566"
+        volumes:
+            - "localstack-vol:/tmp/localstack"
+            - ./bootstrap:/docker-entrypoint-initaws.d/
+
+volumes:
+    localstack-vol:
+
+networks:
+    localstack-net:
+        driver: bridge
+        external: false
+        name: localstack-net

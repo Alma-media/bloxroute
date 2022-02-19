@@ -5,8 +5,7 @@ import (
 )
 
 var (
-	inputFile  string
-	outputFile string
+	key, value string
 )
 
 func New() *cobra.Command {
@@ -33,9 +32,6 @@ func getCommand() *cobra.Command {
 		RunE:         getItems,
 	}
 
-	cmd.Flags().StringVarP(&outputFile, "output", "o", "", "path to output file")
-	cmd.MarkFlagRequired("output")
-
 	return cmd
 }
 
@@ -47,8 +43,10 @@ func addCommand() *cobra.Command {
 		RunE:         addItem,
 	}
 
-	cmd.Flags().StringVarP(&inputFile, "input", "i", "", "path to input file")
-	cmd.MarkFlagRequired("input")
+	cmd.Flags().StringVarP(&key, "key", "k", "", "item key")
+	cmd.Flags().StringVarP(&value, "value", "v", "", "item value")
+	cmd.MarkFlagRequired("key")
+	cmd.MarkFlagRequired("value")
 
 	return cmd
 }
@@ -61,6 +59,9 @@ func delCommand() *cobra.Command {
 		SilenceUsage: true,
 		RunE:         removeItem,
 	}
+
+	cmd.Flags().StringVarP(&key, "key", "k", "", "item key")
+	cmd.MarkFlagRequired("key")
 
 	return cmd
 }
