@@ -9,12 +9,15 @@ import (
 	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 )
 
+var _ transport.Consumer = (*Consumer)(nil)
+
 type Logger interface {
 	Errorf(string, ...interface{})
+	Infof(string, ...interface{})
 	Debugf(string, ...interface{})
 }
 
-type Client struct {
+type Consumer struct {
 	sqsClient sqsiface.SQSAPI
 	queueURL  string
 	timeout   int64
@@ -22,11 +25,24 @@ type Client struct {
 	logger    Logger
 }
 
-func NewClient() *Client {
-	return &Client{}
+func NewConsumer(
+	sqsClient sqsiface.SQSAPI,
+	queueURL string,
+	timeout, batchSize int64,
+	logger Logger,
+) *Consumer {
+	return &Consumer{
+		sqsClient: sqsClient,
+		queueURL:  queueURL,
+		timeout:   timeout,
+		batchSize: batchSize,
+		logger:    logger,
+	}
 }
 
-func (c *Client) Consume(ctx context.Context) <-chan transport.Message {
+func (c *Consumer) Consume(ctx context.Context) <-chan transport.Message {
+	c.logger.Infof("consumer started consuming batches up to %d messages", c.batchSize)
+
 	output := make(chan transport.Message)
 
 	go func() {
@@ -52,10 +68,12 @@ func (c *Client) Consume(ctx context.Context) <-chan transport.Message {
 					},
 				)
 				if err != nil {
-					c.logger.Errorf("failed to receive messages: %w", err)
+					c.logger.Errorf("failed to receive messages: %s", err)
 
 					continue
 				}
+
+				c.logger.Debugf("%d messages received", len(resp.Messages))
 
 				for _, msg := range resp.Messages {
 					output <- newJob(c.sqsClient, c.queueURL, msg)

@@ -3,15 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/Alma-media/bloxroute/cmd/client"
 	"github.com/Alma-media/bloxroute/cmd/config"
 	"github.com/Alma-media/bloxroute/cmd/server"
-	"github.com/Alma-media/bloxroute/pkg/transport"
-	"github.com/Alma-media/bloxroute/pkg/transport/sqs"
 	"github.com/caarlos0/env/v6"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -40,21 +38,18 @@ var (
 	label   string
 )
 
-var (
-	testString string
-)
-
 func NewCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "bloxroute",
 		Version: fmt.Sprintf("%s, build: %s %s", version, build, label),
 		Short:   "short description",
 		Long:    description,
-		// PreRunE: setup,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("in pre run")
+			log.SetFormatter(&log.JSONFormatter{})
+			log.SetOutput(os.Stdout)
+			log.SetLevel(log.InfoLevel)
 
-			return nil // errors.New("bar")
+			return nil
 		},
 	}
 
@@ -62,29 +57,22 @@ func NewCommand() *cobra.Command {
 	cmd.AddCommand(server.New())
 	cmd.DisableAutoGenTag = true
 
-	cmd.PersistentFlags().StringVar(&testString, "stringvar", "", "test string flag")
-
 	return cmd
 }
 
 func main() {
-	var cfg config.Config
+	var (
+		cfg config.Config
+		ctx = context.Background()
+	)
+
 	if err := env.Parse(&cfg); err != nil {
-		fmt.Printf("%+v\n", err)
+		log.Fatalf("cannot parse the config: %s", err)
 	}
 
-	log.Println(cfg)
-
-	consumer := sqs.NewClient()
-
-	ctx := transport.AppendConsumerToContext(context.Background(), consumer)
-
-	err := NewCommand().ExecuteContext(ctx)
-	if err != nil {
+	if err := NewCommand().ExecuteContext(
+		config.AppendToContext(ctx, cfg),
+	); err != nil {
 		os.Exit(1)
 	}
 }
-
-// func setup(cmd *cobra.Command, args []string) error {
-// 	return errors.New("foo")
-// }

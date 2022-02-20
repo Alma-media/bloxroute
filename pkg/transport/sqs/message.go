@@ -1,9 +1,12 @@
 package sqs
 
 import (
+	"github.com/Alma-media/bloxroute/pkg/transport"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 )
+
+var _ transport.Message = (*job)(nil)
 
 type job struct {
 	sqsClient sqsiface.SQSAPI
@@ -20,7 +23,12 @@ func newJob(sqsClient sqsiface.SQSAPI, queueURL string, message *sqs.Message) jo
 }
 
 func (j job) Command() string {
-	return *j.message.Attributes["command"]
+	cmd, ok := j.message.MessageAttributes["command"]
+	if !ok || cmd.StringValue == nil {
+		return ""
+	}
+
+	return *cmd.StringValue
 }
 
 func (j job) Payload() []byte {

@@ -10,7 +10,7 @@ type HandlerFunc func(payload []byte) error
 
 type Logger interface {
 	Errorf(string, ...interface{})
-	Debugf(string, ...interface{})
+	Infof(string, ...interface{})
 }
 
 type Worker struct {
@@ -32,40 +32,11 @@ func (w *Worker) Handle(cmd string, fn HandlerFunc) *Worker {
 	return w
 }
 
-// Run the worker listening to the data input channel.
-func (w *Worker) Run(ctx context.Context, input <-chan transport.Message) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case msg, ok := <-input:
-			if !ok {
-				return nil
-			}
-
-			handler, ok := w.commands[string(msg.Command())]
-			if !ok {
-				w.logger.Errorf("unknown command %q", msg.Command())
-
-				continue
-			}
-
-			if err := handler(msg.Payload()); err != nil {
-				w.logger.Errorf("%q error: %w", msg.Command(), err)
-
-				continue
-			}
-
-			if err := msg.Consumed(); err != nil {
-				w.logger.Errorf("filed to consume the message: %w", err)
-			}
-		}
-	}
-}
-
 // RunParallel handles messages in parallel goroutines (it can spawn 1..poolSize concurrent routines).
-// The advantage of current approach: we do not spawn idle goroutines waiting for messages.
+// We do not spawn idle goroutines waiting for messages.
 func (w *Worker) RunParallel(ctx context.Context, input <-chan transport.Message, poolSize int) error {
+	w.logger.Infof("worker started processing up to %d parallel messages", poolSize)
+
 	workers := make(chan struct{}, poolSize)
 
 	for msg := range input {
@@ -76,6 +47,8 @@ func (w *Worker) RunParallel(ctx context.Context, input <-chan transport.Message
 		}
 
 		go func(msg transport.Message) {
+			defer func() { <-workers }()
+
 			handler, ok := w.commands[string(msg.Command())]
 			if !ok {
 				w.logger.Errorf("unknown command %q", msg.Command())
@@ -84,13 +57,12 @@ func (w *Worker) RunParallel(ctx context.Context, input <-chan transport.Message
 			}
 
 			if err := handler(msg.Payload()); err != nil {
-				w.logger.Errorf("%q error: %w", msg.Command(), err)
-
-				return
+				w.logger.Errorf("%q error: %s", msg.Command(), err)
 			}
 
+			// consume message anyway
 			if err := msg.Consumed(); err != nil {
-				w.logger.Errorf("filed to consume the message: %w", err)
+				w.logger.Errorf("filed to consume the message: %s", err)
 			}
 		}(msg)
 	}
